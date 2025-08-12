@@ -227,7 +227,7 @@ def encode_samples(ptype, list samps):
 
         elif pt==SCALAR_SHORT or pt==SCALAR_ENUM:
             i16 = V
-            if pt==SCALAR_ENUM:
+            if pt==SCALAR_SHORT:
                 encode_sample[ScalarShort](raw, &i16, 1, meta, cnxlostepsecs)
             elif pt==SCALAR_ENUM:
                 encode_sample[ScalarEnum](raw, &i16, 1, meta, cnxlostepsecs)

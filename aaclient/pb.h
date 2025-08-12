@@ -111,22 +111,40 @@ val_count(const PB& pb) { return pb.val_size(); }
 
 template<typename V>
 typename std::enable_if<std::is_pod<V>::value>::type
-val_assign(V v, char *& cur, size_t maxelems)
+val_assign(V v, char *& cur, size_t maxelems, PayloadType ptype)
 {
-    *reinterpret_cast<V*>(cur) = v;
-    cur += sizeof(V)*maxelems;
+    if(ptype == SCALAR_SHORT || ptype == SCALAR_ENUM) {
+        // Special case: convert int32_t input to int16_t output for short/enum scalars
+        int16_t val16 = static_cast<int16_t>(v);
+        *reinterpret_cast<int16_t*>(cur) = val16;
+        cur += sizeof(int16_t)*maxelems;
+    } else {
+        *reinterpret_cast<V*>(cur) = v;
+        cur += sizeof(V)*maxelems;
+    }
 }
 
 template<typename E>
 typename std::enable_if<std::is_pod<E>::value>::type
-val_assign(const google::protobuf::RepeatedField<E>& v, char *& cur, size_t maxelems)
+val_assign(const google::protobuf::RepeatedField<E>& v, char *& cur, size_t maxelems, PayloadType ptype)
 {
     size_t l = v.size();
-    memcpy(cur, v.data(), sizeof(E)*l);
-    cur += sizeof(E)*maxelems;
+    
+    if(ptype==WAVEFORM_SHORT || ptype==WAVEFORM_ENUM) {
+        // Special case: convert each int32_t element to int16_t for short/enum waveform data
+        for(size_t i=0; i<l; i++) {
+            int16_t val16 = static_cast<int16_t>(v.Get(i));
+            *reinterpret_cast<int16_t*>(cur + i * sizeof(int16_t)) = val16;
+        }
+        cur += sizeof(int16_t)*maxelems;
+    }
+    else {
+        memcpy(cur, v.data(), sizeof(E)*l);
+        cur += sizeof(E)*maxelems;
+    }
 }
 
-void val_assign(const std::string& v, char *& cur, size_t maxelems)
+void val_assign(const std::string& v, char *& cur, size_t maxelems, PayloadType ptype)
 {
     size_t l = v.size();
     if(l>40)
@@ -135,7 +153,7 @@ void val_assign(const std::string& v, char *& cur, size_t maxelems)
     cur += 40*maxelems;
 }
 
-void val_assign(const google::protobuf::RepeatedPtrField<std::string>& v, char *& cur, size_t maxelems)
+void val_assign(const google::protobuf::RepeatedPtrField<std::string>& v, char *& cur, size_t maxelems, PayloadType ptype)
 {
     for(size_t i=0, N=v.size(); i<N; i++) {
         const auto& s = v.Get(i);
@@ -229,7 +247,7 @@ struct DecoderPB : public Decoder {
             meta->severity = pb.severity();
             meta->status = pb.status();
             meta++;
-            val_assign(pb.val(), cur, maxelems);
+            val_assign(pb.val(), cur, maxelems, ptype);
         }
         pbs.clear();
     }
